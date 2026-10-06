@@ -16,8 +16,12 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // ── Tenant routes ────────────────────────────────────────────────────────
-  if (pathname === "/login" || pathname.startsWith("/reset-password")) {
+  // ── Public routes ────────────────────────────────────────────────────────
+  if (
+    pathname === "/" ||
+    pathname === "/login" ||
+    pathname.startsWith("/reset-password")
+  ) {
     return NextResponse.next()
   }
 
