@@ -1,0 +1,75 @@
+{
+  "pages": {
+    "/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/layout.css",
+      "static/chunks/app/layout.js"
+    ],
+    "/platform/login/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/platform/login/page.js"
+    ],
+    "/platform/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/platform/layout.js"
+    ],
+    "/platform/(protected)/dashboard/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/platform/(protected)/dashboard/page.js"
+    ],
+    "/platform/(protected)/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/platform/(protected)/layout.js"
+    ],
+    "/platform/(protected)/tenants/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/platform/(protected)/tenants/page.js"
+    ],
+    "/platform/(protected)/tenants/new/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/platform/(protected)/tenants/new/page.js"
+    ],
+    "/platform/(protected)/billing/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/platform/(protected)/billing/page.js"
+    ],
+    "/platform/(protected)/subscriptions/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/platform/(protected)/subscriptions/page.js"
+    ],
+    "/platform/(protected)/feature-flags/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/platform/(protected)/feature-flags/page.js"
+    ],
+    "/platform/(protected)/domains/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/platform/(protected)/domains/page.js"
+    ],
+    "/platform/(protected)/users/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/platform/(protected)/users/page.js"
+    ],
+    "/platform/(protected)/audit/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/platform/(protected)/audit/page.js"
+    ],
+    "/platform/(protected)/system-health/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/platform/(protected)/system-health/page.js"
+    ]
+  }
+}

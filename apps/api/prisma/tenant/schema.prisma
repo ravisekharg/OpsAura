@@ -1,0 +1,711 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../node_modules/@prisma/tenant-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("TENANT_DATABASE_URL")
+}
+
+// ─── Identity & Access ────────────────────────────────────────────────────────
+
+model User {
+  id                  String     @id @default(uuid())
+  email               String     @unique
+  passwordHash        String?    @map("password_hash")
+  name                String
+  roleId              String     @map("role_id")
+  status              UserStatus @default(INVITED)
+  mfaSecret           String?    @map("mfa_secret")
+  mfaEnabled          Boolean    @default(false) @map("mfa_enabled")
+  avatarUrl           String?    @map("avatar_url")
+  forcePasswordChange Boolean    @default(false) @map("force_password_change")
+  lastLoginAt         DateTime?  @map("last_login_at")
+  invitedBy           String?    @map("invited_by")
+  createdAt           DateTime   @default(now()) @map("created_at")
+
+  role                    Role                      @relation(fields: [roleId], references: [id])
+  sessions                Session[]
+  apiKeys                 ApiKey[]
+  passwordResetTokens     PasswordResetToken[]
+  auditEvents             AuditEvent[]
+  teamMemberships         TeamMember[]
+  leadingTeams            Team[]                    @relation("TeamLead")
+  ownedServicesAsPrimary  ServiceOwnership[]        @relation("PrimaryOwner")
+  ownedServicesAsSecondary ServiceOwnership[]       @relation("SecondaryOwner")
+  createdOverrides        Override[]                @relation("OverrideCreator")
+  originalOverrides       Override[]                @relation("OriginalUser")
+  replacingOverrides      Override[]                @relation("OverrideUser")
+  assignedAlerts          Alert[]
+  assignedEscalations     Escalation[]
+  warRoomsAsCommander     WarRoom[]
+  warRoomParticipations   WarRoomParticipant[]
+  warRoomActionsAssigned  WarRoomAction[]
+  settingsUpdated         Setting[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  users           User[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String @id @default(uuid())
+  resource    String
+  action      String
+  description String?
+
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Session {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  refreshTokenHash String    @map("refresh_token_hash")
+  ipAddress        String?   @map("ip_address")
+  userAgent        String?   @map("user_agent")
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([refreshTokenHash])
+  @@map("sessions")
+}
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  name        String
+  keyHash     String    @map("key_hash")
+  prefix      String
+  scopes      Json      @default("[]")
+  lastUsedAt  DateTime? @map("last_used_at")
+  expiresAt   DateTime? @map("expires_at")
+  revokedAt   DateTime? @map("revoked_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([keyHash])
+  @@map("api_keys")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([tokenHash])
+  @@map("password_reset_tokens")
+}
+
+// ─── Organization ─────────────────────────────────────────────────────────────
+
+model Team {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  leadUserId  String?  @map("lead_user_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  lead            User?              @relation("TeamLead", fields: [leadUserId], references: [id])
+  members         TeamMember[]
+  services        Service[]
+  assignmentGroups AssignmentGroup[]
+  schedules       Schedule[]
+  escalationPolicies EscalationPolicy[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  teamId   String   @map("team_id")
+  userId   String   @map("user_id")
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  team Team @relation(fields: [teamId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@id([teamId, userId])
+  @@map("team_members")
+}
+
+model Service {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  teamId      String?       @map("team_id")
+  tier        ServiceTier   @default(P2)
+  status      ServiceStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  team      Team?             @relation(fields: [teamId], references: [id])
+  ownership ServiceOwnership?
+  alerts    Alert[]
+  warRooms  WarRoom[]
+  escalations Escalation[]
+
+  @@map("services")
+}
+
+model ServiceOwnership {
+  id                String   @id @default(uuid())
+  serviceId         String   @unique @map("service_id")
+  primaryUserId     String?  @map("primary_user_id")
+  secondaryUserId   String?  @map("secondary_user_id")
+  assignmentGroupId String?  @map("assignment_group_id")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
+
+  service         Service          @relation(fields: [serviceId], references: [id])
+  primaryUser     User?            @relation("PrimaryOwner", fields: [primaryUserId], references: [id])
+  secondaryUser   User?            @relation("SecondaryOwner", fields: [secondaryUserId], references: [id])
+  assignmentGroup AssignmentGroup? @relation(fields: [assignmentGroupId], references: [id])
+
+  @@map("service_ownership")
+}
+
+// ─── Assignment & OnCall ──────────────────────────────────────────────────────
+
+model AssignmentGroup {
+  id                  String   @id @default(uuid())
+  name                String
+  description         String?
+  teamId              String?  @map("team_id")
+  oncallPolicy        String?  @map("oncall_policy")
+  escalationPolicyId  String?  @map("escalation_policy_id")
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  team              Team?              @relation(fields: [teamId], references: [id])
+  escalationPolicy  EscalationPolicy?  @relation(fields: [escalationPolicyId], references: [id])
+  serviceOwnerships ServiceOwnership[]
+  routingRules      RoutingRule[]
+  alerts            Alert[]
+  snGroupMappings   SnGroupMapping[]
+
+  @@map("assignment_groups")
+}
+
+model RoutingRule {
+  id                String   @id @default(uuid())
+  name              String
+  priority          Int
+  conditions        Json
+  assignmentGroupId String   @map("assignment_group_id")
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  assignmentGroup AssignmentGroup @relation(fields: [assignmentGroupId], references: [id])
+
+  @@index([priority, active])
+  @@map("routing_rules")
+}
+
+model Schedule {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  teamId      String?  @map("team_id")
+  timezone    String
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  team      Team?      @relation(fields: [teamId], references: [id])
+  rotations Rotation[]
+  overrides Override[]
+
+  @@map("schedules")
+}
+
+model Rotation {
+  id          String       @id @default(uuid())
+  scheduleId  String       @map("schedule_id")
+  name        String
+  type        RotationType @default(WEEKLY)
+  members     Json
+  handoffDay  String?      @map("handoff_day")
+  handoffTime DateTime?    @map("handoff_time") @db.Time()
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  schedule Schedule @relation(fields: [scheduleId], references: [id])
+
+  @@map("rotations")
+}
+
+model Override {
+  id             String   @id @default(uuid())
+  scheduleId     String   @map("schedule_id")
+  originalUserId String   @map("original_user_id")
+  overrideUserId String   @map("override_user_id")
+  startAt        DateTime @map("start_at")
+  endAt          DateTime @map("end_at")
+  reason         String?
+  createdBy      String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  schedule      Schedule @relation(fields: [scheduleId], references: [id])
+  originalUser  User     @relation("OriginalUser", fields: [originalUserId], references: [id])
+  overrideUser  User     @relation("OverrideUser", fields: [overrideUserId], references: [id])
+  createdByUser User     @relation("OverrideCreator", fields: [createdBy], references: [id])
+
+  @@index([scheduleId, startAt, endAt])
+  @@map("overrides")
+}
+
+// ─── Alerts ───────────────────────────────────────────────────────────────────
+
+model Alert {
+  id                  String        @id @default(uuid())
+  title               String
+  description         String?
+  severity            AlertSeverity @default(MEDIUM)
+  status              AlertStatus   @default(FIRING)
+  serviceId           String?       @map("service_id")
+  source              String?
+  assignmentGroupId   String?       @map("assignment_group_id")
+  assignedUserId      String?       @map("assigned_user_id")
+  tags                Json          @default("[]")
+  fingerprint         String
+  dedupCount          Int           @default(1) @map("dedup_count")
+  correlationGroupId  String?       @map("correlation_group_id")
+  rawPayload          Json?         @map("raw_payload")
+  firedAt             DateTime      @default(now()) @map("fired_at")
+  acknowledgedAt      DateTime?     @map("acknowledged_at")
+  resolvedAt          DateTime?     @map("resolved_at")
+
+  service         Service?         @relation(fields: [serviceId], references: [id])
+  assignmentGroup AssignmentGroup? @relation(fields: [assignmentGroupId], references: [id])
+  assignedUser    User?            @relation(fields: [assignedUserId], references: [id])
+  escalations     Escalation[]
+  deliveries      NotificationDelivery[]
+
+  @@index([fingerprint, status])
+  @@index([status, severity, firedAt(sort: Desc)])
+  @@map("alerts")
+}
+
+model CorrelationRule {
+  id             String   @id @default(uuid())
+  name           String
+  description    String?
+  matchField     String   @map("match_field")
+  matchValue     String   @map("match_value")
+  groupBy        String   @map("group_by")
+  windowMinutes  Int      @map("window_minutes")
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("correlation_rules")
+}
+
+model SuppressionRule {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  matchField  String    @map("match_field")
+  matchValue  String    @map("match_value")
+  reason      String
+  expiresAt   DateTime? @map("expires_at")
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@map("suppression_rules")
+}
+
+// ─── Escalations ──────────────────────────────────────────────────────────────
+
+model EscalationPolicy {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  teamId      String?  @map("team_id")
+  steps       Json
+  repeatCount Int      @default(1) @map("repeat_count")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  team             Team?             @relation(fields: [teamId], references: [id])
+  escalations      Escalation[]
+  assignmentGroups AssignmentGroup[]
+
+  @@map("escalation_policies")
+}
+
+model Escalation {
+  id               String            @id @default(uuid())
+  title            String
+  description      String?
+  type             EscalationType    @default(INTERNAL)
+  priority         ServiceTier       @default(P1)
+  status           EscalationStatus  @default(OPEN)
+  serviceId        String?           @map("service_id")
+  policyId         String?           @map("policy_id")
+  currentStep      Int               @default(1) @map("current_step")
+  alertId          String?           @map("alert_id")
+  assignedUserId   String?           @map("assigned_user_id")
+  contact          Json?
+  nextEscalationAt DateTime?         @map("next_escalation_at")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  resolvedAt       DateTime?         @map("resolved_at")
+
+  service      Service?          @relation(fields: [serviceId], references: [id])
+  policy       EscalationPolicy? @relation(fields: [policyId], references: [id])
+  alert        Alert?            @relation(fields: [alertId], references: [id])
+  assignedUser User?             @relation(fields: [assignedUserId], references: [id])
+
+  @@index([status, nextEscalationAt])
+  @@map("escalations")
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+model NotificationChannel {
+  id            String      @id @default(uuid())
+  type          ChannelType
+  name          String
+  configVaultKey String     @map("config_vault_key")
+  connected     Boolean     @default(false)
+  updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
+
+  deliveries NotificationDelivery[]
+
+  @@map("notification_channels")
+}
+
+model NotificationDelivery {
+  id            String          @id @default(uuid())
+  channelId     String          @map("channel_id")
+  recipient     String
+  subject       String?
+  status        DeliveryStatus  @default(PENDING)
+  alertId       String?         @map("alert_id")
+  escalationId  String?         @map("escalation_id")
+  errorMessage  String?         @map("error_message")
+  retryCount    Int             @default(0) @map("retry_count")
+  sentAt        DateTime?       @map("sent_at")
+
+  channel NotificationChannel @relation(fields: [channelId], references: [id])
+  alert   Alert?              @relation(fields: [alertId], references: [id])
+
+  @@index([status, sentAt(sort: Desc)])
+  @@map("notification_deliveries")
+}
+
+// ─── War Rooms ────────────────────────────────────────────────────────────────
+
+model WarRoom {
+  id                   String        @id @default(uuid())
+  title                String
+  description          String?
+  status               WarRoomStatus @default(ACTIVE)
+  severity             AlertSeverity @default(HIGH)
+  serviceId            String?       @map("service_id")
+  alertIds             String[]      @map("alert_ids")
+  incidentCommanderId  String        @map("incident_commander_id")
+  templateId           String?       @map("template_id")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  resolvedAt           DateTime?     @map("resolved_at")
+
+  service            Service?             @relation(fields: [serviceId], references: [id])
+  incidentCommander  User                 @relation(fields: [incidentCommanderId], references: [id])
+  template           WarRoomTemplate?     @relation(fields: [templateId], references: [id])
+  participants       WarRoomParticipant[]
+  actions            WarRoomAction[]
+  timeline           WarRoomTimeline[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@map("war_rooms")
+}
+
+model WarRoomParticipant {
+  id         String              @id @default(uuid())
+  warRoomId  String              @map("war_room_id")
+  userId     String              @map("user_id")
+  role       WarRoomParticipantRole @default(ENGINEER)
+  joinedAt   DateTime            @default(now()) @map("joined_at")
+  leftAt     DateTime?           @map("left_at")
+
+  warRoom WarRoom @relation(fields: [warRoomId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([warRoomId, userId])
+  @@map("war_room_participants")
+}
+
+model WarRoomAction {
+  id             String       @id @default(uuid())
+  warRoomId      String       @map("war_room_id")
+  title          String
+  assignedUserId String?      @map("assigned_user_id")
+  status         ActionStatus @default(OPEN)
+  dueAt          DateTime?    @map("due_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  completedAt    DateTime?    @map("completed_at")
+
+  warRoom      WarRoom @relation(fields: [warRoomId], references: [id])
+  assignedUser User?   @relation(fields: [assignedUserId], references: [id])
+
+  @@map("war_room_actions")
+}
+
+model WarRoomTimeline {
+  id        String   @id @default(uuid())
+  warRoomId String   @map("war_room_id")
+  type      String
+  actorId   String?  @map("actor_id")
+  message   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  warRoom WarRoom @relation(fields: [warRoomId], references: [id])
+
+  @@index([warRoomId, createdAt])
+  @@map("war_room_timeline")
+}
+
+model WarRoomTemplate {
+  id             String   @id @default(uuid())
+  name           String
+  description    String?
+  defaultRoles   Json     @default("[]") @map("default_roles")
+  defaultActions Json     @default("[]") @map("default_actions")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  warRooms WarRoom[]
+
+  @@map("war_room_templates")
+}
+
+// ─── ServiceNow ───────────────────────────────────────────────────────────────
+
+model SnConnection {
+  id           String           @id @default(uuid())
+  name         String
+  instanceUrl  String           @map("instance_url")
+  username     String
+  vaultKey     String           @map("vault_key")
+  status       SnConnectionStatus @default(DISCONNECTED)
+  lastTestedAt DateTime?        @map("last_tested_at")
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  groupMappings SnGroupMapping[]
+  syncLogs      SnSyncLog[]
+
+  @@map("sn_connections")
+}
+
+model SnGroupMapping {
+  id              String     @id @default(uuid())
+  connectionId    String     @map("connection_id")
+  snGroupId       String     @map("sn_group_id")
+  snGroupName     String?    @map("sn_group_name")
+  localGroupId    String     @map("local_group_id")
+  autoSync        Boolean    @default(true) @map("auto_sync")
+  lastSyncedAt    DateTime?  @map("last_synced_at")
+  syncStatus      SyncStatus @default(PENDING) @map("sync_status")
+
+  connection  SnConnection    @relation(fields: [connectionId], references: [id])
+  localGroup  AssignmentGroup @relation(fields: [localGroupId], references: [id])
+
+  @@map("sn_group_mappings")
+}
+
+model SnSyncLog {
+  id              String        @id @default(uuid())
+  connectionId    String        @map("connection_id")
+  operation       SnOperation
+  status          SyncStatus
+  recordsAffected Int           @default(0) @map("records_affected")
+  message         String?
+  errorDetail     String?       @map("error_detail")
+  executedAt      DateTime      @default(now()) @map("executed_at")
+  durationMs      Int?          @map("duration_ms")
+
+  connection SnConnection @relation(fields: [connectionId], references: [id])
+
+  @@index([connectionId, executedAt(sort: Desc)])
+  @@map("sn_sync_logs")
+}
+
+// ─── Audit & Settings ─────────────────────────────────────────────────────────
+
+model AuditEvent {
+  id          String         @id @default(uuid())
+  category    String
+  action      String
+  actorId     String?        @map("actor_id")
+  actorEmail  String?        @map("actor_email")
+  target      String?
+  detail      String?
+  severity    AuditSeverity  @default(INFO)
+  ipAddress   String?        @map("ip_address")
+  userAgent   String?        @map("user_agent")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([createdAt(sort: Desc)])
+  @@index([actorId, createdAt(sort: Desc)])
+  @@index([category, createdAt(sort: Desc)])
+  @@map("audit_events")
+}
+
+model Setting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       Json
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+  updatedBy   String?  @map("updated_by")
+
+  updatedByUser User? @relation(fields: [updatedBy], references: [id])
+
+  @@map("settings")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  INVITED
+  SUSPENDED
+}
+
+enum ServiceTier {
+  P0
+  P1
+  P2
+  P3
+}
+
+enum ServiceStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AlertSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+enum AlertStatus {
+  FIRING
+  ACKNOWLEDGED
+  RESOLVED
+  SUPPRESSED
+}
+
+enum RotationType {
+  WEEKLY
+  DAILY
+  CUSTOM
+}
+
+enum EscalationType {
+  INTERNAL
+  CUSTOMER
+  VENDOR
+}
+
+enum EscalationStatus {
+  OPEN
+  ACKNOWLEDGED
+  ESCALATED
+  RESOLVED
+}
+
+enum ChannelType {
+  EMAIL
+  SLACK
+  TEAMS
+  VOICE
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+}
+
+enum WarRoomStatus {
+  ACTIVE
+  RESOLVED
+  ARCHIVED
+}
+
+enum WarRoomParticipantRole {
+  INCIDENT_COMMANDER
+  ENGINEER
+  OBSERVER
+  EXECUTIVE
+}
+
+enum ActionStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
+enum SnConnectionStatus {
+  CONNECTED
+  DISCONNECTED
+  TESTING
+}
+
+enum SyncStatus {
+  SYNCED
+  FAILED
+  PARTIAL
+  PENDING
+}
+
+enum SnOperation {
+  PULL_GROUPS
+  PUSH_ALERT
+  PUSH_INCIDENT
+  SYNC_USERS
+}
+
+enum AuditSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}

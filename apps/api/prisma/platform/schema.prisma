@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../node_modules/@prisma/platform-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("PLATFORM_DATABASE_URL")
+}
+
+model Tenant {
+  id        String       @id @default(uuid())
+  slug      String       @unique
+  name      String
+  planId    String?      @map("plan_id")
+  status    TenantStatus @default(ONBOARDING)
+  dbName    String       @unique @map("db_name")
+  domain    String?
+  createdAt DateTime     @default(now()) @map("created_at")
+  suspendedAt DateTime?  @map("suspended_at")
+
+  plan          Plan?          @relation(fields: [planId], references: [id])
+  subscriptions Subscription[]
+  globalAudit   GlobalAudit[]
+  featureFlagOverrides FeatureFlagOverride[]
+  domains       Domain[]
+
+  @@map("tenants")
+}
+
+model Plan {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  features     Json     @default("{}")
+  limits       Json     @default("{}")
+  priceMonthly Decimal? @map("price_monthly") @db.Decimal(10, 2)
+
+  tenants       Tenant[]
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id           String             @id @default(uuid())
+  tenantId     String             @map("tenant_id")
+  planId       String             @map("plan_id")
+  status       SubscriptionStatus @default(TRIALING)
+  billingCycle BillingCycle       @default(MONTHLY) @map("billing_cycle")
+  startsAt     DateTime           @map("starts_at")
+  endsAt       DateTime?          @map("ends_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  @@map("subscriptions")
+}
+
+model PlatformUser {
+  id           String           @id @default(uuid())
+  email        String           @unique
+  passwordHash String           @map("password_hash")
+  name         String
+  role         PlatformUserRole @default(READ_ONLY)
+  active       Boolean          @default(true)
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  @@map("platform_users")
+}
+
+model Domain {
+  id         String    @id @default(uuid())
+  tenantId   String    @map("tenant_id")
+  domain     String    @unique
+  verified   Boolean   @default(false)
+  verifiedAt DateTime? @map("verified_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("domains")
+}
+
+model FeatureFlag {
+  id      String @id @default(uuid())
+  name    String @unique
+  enabled Boolean @default(false)
+
+  overrides FeatureFlagOverride[]
+
+  @@map("feature_flags")
+}
+
+model FeatureFlagOverride {
+  id        String  @id @default(uuid())
+  flagId    String  @map("flag_id")
+  tenantId  String  @map("tenant_id")
+  enabled   Boolean
+
+  flag   FeatureFlag @relation(fields: [flagId], references: [id])
+  tenant Tenant      @relation(fields: [tenantId], references: [id])
+
+  @@unique([flagId, tenantId])
+  @@map("feature_flag_overrides")
+}
+
+model GlobalAudit {
+  id          String   @id @default(uuid())
+  tenantId    String?  @map("tenant_id")
+  actorId     String?  @map("actor_id")
+  actorEmail  String?  @map("actor_email")
+  action      String
+  target      String?
+  detail      String?
+  ipAddress   String?  @map("ip_address")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("global_audit")
+}
+
+enum TenantStatus {
+  ONBOARDING
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+}
+
+enum BillingCycle {
+  MONTHLY
+  ANNUAL
+}
+
+enum PlatformUserRole {
+  SUPER_ADMIN
+  ADMIN
+  SUPPORT_ADMIN
+  BILLING_ADMIN
+  READ_ONLY
+}

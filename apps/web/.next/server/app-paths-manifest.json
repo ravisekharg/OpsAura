@@ -1,0 +1,13 @@
+{
+  "/platform/login/page": "app/platform/login/page.js",
+  "/platform/(protected)/tenants/page": "app/platform/(protected)/tenants/page.js",
+  "/platform/(protected)/dashboard/page": "app/platform/(protected)/dashboard/page.js",
+  "/platform/(protected)/tenants/new/page": "app/platform/(protected)/tenants/new/page.js",
+  "/platform/(protected)/subscriptions/page": "app/platform/(protected)/subscriptions/page.js",
+  "/platform/(protected)/billing/page": "app/platform/(protected)/billing/page.js",
+  "/platform/(protected)/feature-flags/page": "app/platform/(protected)/feature-flags/page.js",
+  "/platform/(protected)/domains/page": "app/platform/(protected)/domains/page.js",
+  "/platform/(protected)/users/page": "app/platform/(protected)/users/page.js",
+  "/platform/(protected)/audit/page": "app/platform/(protected)/audit/page.js",
+  "/platform/(protected)/system-health/page": "app/platform/(protected)/system-health/page.js"
+}

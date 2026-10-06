@@ -1,0 +1,98 @@
+services:
+  # ── Infrastructure ─────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: opsaura-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: opsaura
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: platform_db
+    ports:
+      - '5433:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U opsaura -d platform_db']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: opsaura-redis
+    restart: unless-stopped
+    ports:
+      - '6380:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── API ────────────────────────────────────────────────────────────────────
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: opsaura-api
+    restart: unless-stopped
+    ports:
+      - '4100:4000'
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      APP_URL: http://localhost:4100
+      FRONTEND_URL: http://localhost:3100,http://localhost:3001
+
+      PLATFORM_DATABASE_URL: postgresql://opsaura:password@postgres:5432/platform_db
+      TENANT_DATABASE_BASE_URL: postgresql://opsaura:password@postgres:5432
+
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ''
+
+      JWT_ACCESS_SECRET: opsaura-dev-jwt-access-secret-min-64-chars-change-in-prod
+      JWT_ACCESS_EXPIRY: 15m
+      JWT_REFRESH_SECRET: opsaura-dev-jwt-refresh-secret-min-64-chars-change-in-prod
+      JWT_REFRESH_EXPIRY: 7d
+
+      COOKIE_SECRET: opsaura-dev-cookie-secret
+      BCRYPT_ROUNDS: '10'
+      THROTTLE_TTL: '60'
+      THROTTLE_LIMIT: '200'
+
+      CHANNEL_ENCRYPTION_KEY: opsaura-dev-channel-enc-key-32chars!
+
+      AUDIT_QUEUE_NAME: audit-events
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Web ────────────────────────────────────────────────────────────────────
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:4100/v1
+    container_name: opsaura-web
+    restart: unless-stopped
+    ports:
+      - '3100:3001'
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4100/v1
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:

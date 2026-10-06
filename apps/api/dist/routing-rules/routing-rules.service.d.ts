@@ -1,0 +1,112 @@
+import { TenantContextService } from '../tenant/tenant-context.service';
+import type { CreateRoutingRuleDto, UpdateRoutingRuleDto, ReorderRoutingRulesDto } from './dto/routing-rule.dto';
+export declare class RoutingRulesService {
+    private readonly tenantContext;
+    constructor(tenantContext: TenantContextService);
+    private get db();
+    findAll(assignmentGroupId?: string): import("@prisma/tenant-client").Prisma.PrismaPromise<({
+        assignmentGroup: {
+            name: string;
+            id: string;
+        };
+    } & {
+        name: string;
+        id: string;
+        createdAt: Date;
+        active: boolean;
+        assignmentGroupId: string;
+        priority: number;
+        conditions: import("@prisma/tenant-client/runtime/library").JsonValue;
+    })[]>;
+    findOne(id: string): Promise<{
+        assignmentGroup: {
+            name: string;
+            id: string;
+        };
+    } & {
+        name: string;
+        id: string;
+        createdAt: Date;
+        active: boolean;
+        assignmentGroupId: string;
+        priority: number;
+        conditions: import("@prisma/tenant-client/runtime/library").JsonValue;
+    }>;
+    create(dto: CreateRoutingRuleDto): Promise<{
+        assignmentGroup: {
+            name: string;
+            id: string;
+        };
+    } & {
+        name: string;
+        id: string;
+        createdAt: Date;
+        active: boolean;
+        assignmentGroupId: string;
+        priority: number;
+        conditions: import("@prisma/tenant-client/runtime/library").JsonValue;
+    }>;
+    update(id: string, dto: UpdateRoutingRuleDto): Promise<{
+        assignmentGroup: {
+            name: string;
+            id: string;
+        };
+    } & {
+        name: string;
+        id: string;
+        createdAt: Date;
+        active: boolean;
+        assignmentGroupId: string;
+        priority: number;
+        conditions: import("@prisma/tenant-client/runtime/library").JsonValue;
+    }>;
+    remove(id: string): Promise<{
+        name: string;
+        id: string;
+        createdAt: Date;
+        active: boolean;
+        assignmentGroupId: string;
+        priority: number;
+        conditions: import("@prisma/tenant-client/runtime/library").JsonValue;
+    }>;
+    reorder(dto: ReorderRoutingRulesDto): Promise<({
+        assignmentGroup: {
+            name: string;
+            id: string;
+        };
+    } & {
+        name: string;
+        id: string;
+        createdAt: Date;
+        active: boolean;
+        assignmentGroupId: string;
+        priority: number;
+        conditions: import("@prisma/tenant-client/runtime/library").JsonValue;
+    })[]>;
+    testRule(alertPayload: Record<string, any>): Promise<{
+        matched: boolean;
+        rule: {
+            assignmentGroup: {
+                name: string;
+                id: string;
+            };
+        } & {
+            name: string;
+            id: string;
+            createdAt: Date;
+            active: boolean;
+            assignmentGroupId: string;
+            priority: number;
+            conditions: import("@prisma/tenant-client/runtime/library").JsonValue;
+        };
+        assignmentGroup: {
+            name: string;
+            id: string;
+        };
+    } | {
+        matched: boolean;
+        rule: null;
+        assignmentGroup: null;
+    }>;
+    private evalCondition;
+}
