@@ -4,3 +4,7 @@ dist/
 .env
 .env.local
 *.log
+apps/web/node_modules/
+apps/api/node_modules/
+apps/web/.next/
+apps/api/dist/
