@@ -21,13 +21,15 @@ function useInView(threshold = 0.12) {
 
 function AnimSection({ children, style, className }: { children: React.ReactNode; style?: React.CSSProperties; className?: string }) {
   const { ref, visible } = useInView()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
   return (
     <div
       ref={ref}
       className={className}
       style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? "translateY(0)" : "translateY(32px)",
+        opacity: !mounted || visible ? 1 : 0,
+        transform: !mounted || visible ? "translateY(0)" : "translateY(32px)",
         transition: "opacity .65s ease, transform .65s ease",
         ...style,
       }}
